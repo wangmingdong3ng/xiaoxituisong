@@ -1,9 +1,9 @@
 name: 飞书每周一机审质检值班提醒
 
 on:
-  # 每周一 北京时间 9:30 = UTC 01:30
+  # 每周二 北京时间 9:30 = UTC 01:30
   schedule:
-    - cron: '30 1 * * 1'
+    - cron: '30 1 * * 2'
 
   # 支持手动触发（用于测试）
   workflow_dispatch:
@@ -55,9 +55,9 @@ jobs:
         id: send_card
         run: |
           TOKEN="${{ steps.get_token.outputs.token }}"
-          CHAT_ID="oc_57d4fe6bdbb409c954ced93e9f803f40"
+          CHAT_ID="oc_60b5e9c78c4a10f6a85777fe4900767f"
 
-          echo "🚀 发送机审质检值班提醒到群聊[饭]..."
+          echo "🚀 发送机审质检值班提醒到群聊[机审质检值班群]..."
 
           # 构建卡片 JSON
           CARD_JSON=$(cat <<'CARD_EOF'
