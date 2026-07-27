@@ -1,0 +1,146 @@
+name: 飞书每周一机审质检值班提醒
+
+on:
+  # 每周一 北京时间 9:50 = UTC 01:50
+  schedule:
+    - cron: '30 1 * * 1'
+
+  # 支持手动触发（用于测试）
+  workflow_dispatch:
+
+jobs:
+  send-reminder:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检查时间
+        run: |
+          echo "📅 当前时间信息："
+          echo "UTC 时间: $(date -u)"
+          echo "北京时间: $(TZ='Asia/Shanghai' date)"
+          echo "星期几: $(date +%u)"
+
+      - name: 获取飞书 Token
+        id: get_token
+        run: |
+          echo "🔑 获取飞书访问令牌..."
+
+          APP_ID="${{ secrets.FEISHU_APP_ID }}"
+          APP_SECRET="${{ secrets.FEISHU_APP_SECRET }}"
+
+          if [ -z "$APP_ID" ] || [ -z "$APP_SECRET" ]; then
+            echo "❌ 缺少 FEISHU_APP_ID 或 FEISHU_APP_SECRET"
+            echo "请在仓库 Settings → Secrets and variables → Actions 中添加"
+            exit 1
+          fi
+
+          RESPONSE=$(curl -s -X POST https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal \
+            -H "Content-Type: application/json" \
+            -d "{\"app_id\":\"$APP_ID\",\"app_secret\":\"$APP_SECRET\"}")
+
+          TOKEN=$(echo "$RESPONSE" | jq -r '.tenant_access_token')
+          CODE=$(echo "$RESPONSE" | jq -r '.code')
+
+          if [ "$CODE" != "0" ] || [ -z "$TOKEN" ] || [ "$TOKEN" == "null" ]; then
+            echo "❌ 获取 token 失败"
+            echo "错误码: $CODE"
+            echo "错误信息: $(echo $RESPONSE | jq -r '.msg')"
+            exit 1
+          fi
+
+          echo "✅ Token 获取成功"
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+
+      - name: 发送机审质检值班提醒卡片
+        id: send_card
+        run: |
+          TOKEN="${{ steps.get_token.outputs.token }}"
+          CHAT_ID="oc_57d4fe6bdbb409c954ced93e9f803f40"
+
+          echo "🚀 发送机审质检值班提醒到群聊[饭]..."
+
+          # 构建卡片 JSON
+          CARD_JSON=$(cat <<'CARD_EOF'
+          {
+            "config": {
+              "wide_screen_mode": true
+            },
+            "elements": [
+              {
+                "tag": "div",
+                "text": {
+                  "tag": "lark_md",
+                  "content": "**本周机审质检值班提醒**"
+                }
+              },
+              {
+                "tag": "hr"
+              },
+              {
+                "tag": "div",
+                "text": {
+                  "tag": "lark_md",
+                  "content": "🗒 **提醒内容：**\n本周机审质检值班提醒，请各风险域配合完成以下事项："
+                }
+              },
+              {
+                "tag": "div",
+                "text": {
+                  "tag": "lark_md",
+                  "content": "**1️⃣ 队列信息更新**\n请各业务同学更新所负责队列信息（前5个sheet，涉及队列上下线、试审等），并在sheet6[周度队列信息汇总]进行汇总：\n[模型标注队列信息汇总](https://bytedance.larkoffice.com/sheets/ZnCssbBlMhreNPt1URecMeLenih?sheet=8Lckiq&dcuId=skip_auth)"
+                }
+              },
+              {
+                "tag": "hr"
+              },
+              {
+                "tag": "div",
+                "text": {
+                  "tag": "lark_md",
+                  "content": "**2️⃣ 模型分析记录留痕**\n请大家及时在文档中完成本周机审模型分析记录的留痕，保证分析过程可追溯：\n[26年机审模型分析记录](https://bytedance.larkoffice.com/wiki/O0H9wyXl5imLdjkc0ibcrASUn9f?sheet=L0nqmc&dcuId=skip_auth&disposable_login_token=eyJ1c2VyX2lkIjoiNzYwMzU2MDQzNTc3Nzg1MDMyNiIsImRldmljZV9sb2dpbl9pZCI6Ijc2MDM1NzY2OTY4MjE5MjY4NTUiLCJ0aW1lc3RhbXAiOjE3ODUxMzExOTIsInVuaXQiOiJldV9uYyIsInB3ZF9sZXNzX2xvZ2luX2F1dGgiOiIxIiwidmVyc2lvbiI6InYzIiwidGVuYW50X2JyYW5kIjoiZmVpc2h1IiwicGtnX2JyYW5kIjoi6aOe5LmmIiwiY2xpZW50X3NjaGVtYSI6IngtZmVpc2h1In0%3D.6c08469c1597d9d51969ea75776bca21f1927550a363dc81e112a2050980fdee)"
+                }
+              },
+              {
+                "tag": "hr"
+              },
+              {
+                "tag": "div",
+                "text": {
+                  "tag": "lark_md",
+                  "content": "⏰ 以上事项请于今日 **18:00** 前完成，感谢大家配合！🙏"
+                }
+              }
+            ]
+          }
+          CARD_EOF
+          )
+
+          # 转义 JSON 用于嵌入请求体
+          ESCAPED_CARD=$(echo "$CARD_JSON" | jq -c . | jq -Rs .)
+
+          SEND_RESPONSE=$(curl -s -X POST \
+            "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"receive_id\":\"$CHAT_ID\",\"msg_type\":\"interactive\",\"content\":$ESCAPED_CARD}")
+
+          echo "发送响应: $SEND_RESPONSE"
+
+          SEND_CODE=$(echo "$SEND_RESPONSE" | jq -r '.code')
+
+          if [ "$SEND_CODE" == "0" ]; then
+            MSG_ID=$(echo "$SEND_RESPONSE" | jq -r '.data.message_id')
+            echo "✅ 卡片发送成功！消息ID: $MSG_ID"
+          else
+            echo "❌ 发送失败"
+            echo "错误码: $SEND_CODE"
+            echo "错误信息: $(echo $SEND_RESPONSE | jq -r '.msg')"
+            exit 1
+          fi
+
+      - name: 执行完成
+        if: always()
+        run: |
+          echo "================================"
+          echo "✅ 每周一机审质检值班提醒 - 执行完成"
+          echo "================================"
