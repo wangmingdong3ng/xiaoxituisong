@@ -87,7 +87,11 @@ jobs:
 
           extract_open_id() {
             local email="$1"
-            echo "$RESPONSE" | jq -r --arg email "$email" '.data.email_users[$email][0].open_id // empty'
+            echo "$RESPONSE" | jq -r --arg email "$email" '
+              .data.user_list[]
+              | select(.email == $email)
+              | (.open_id // .user_id // empty)
+            ' | head -n 1
           }
 
           PAN_ENT_OPEN_ID=$(extract_open_id "luowanmin.426@jiyunhudong.com")
