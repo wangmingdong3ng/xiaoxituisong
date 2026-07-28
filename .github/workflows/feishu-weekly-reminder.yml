@@ -1,7 +1,7 @@
-name: 飞书每周一机审质检值班提醒
+name: 飞书每周机审质检值班提醒
 
 on:
-  # 每周一、三 北京时间 9:30 = UTC 01:30
+  # 每周二 北京时间 9:30 = UTC 01:30
   schedule:
     - cron: '30 1 * * 2'
 
@@ -41,100 +41,188 @@ jobs:
           TOKEN=$(echo "$RESPONSE" | jq -r '.tenant_access_token')
           CODE=$(echo "$RESPONSE" | jq -r '.code')
 
-          if [ "$CODE" != "0" ] || [ -z "$TOKEN" ] || [ "$TOKEN" == "null" ]; then
+          if [ "$CODE" != "0" ] || [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
             echo "❌ 获取 token 失败"
             echo "错误码: $CODE"
-            echo "错误信息: $(echo $RESPONSE | jq -r '.msg')"
+            echo "错误信息: $(echo "$RESPONSE" | jq -r '.msg')"
             exit 1
           fi
 
           echo "✅ Token 获取成功"
-          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: 批量查询风险域负责人 open_id
+        id: get_openids
+        run: |
+          set -euo pipefail
+
+          TOKEN="${{ steps.get_token.outputs.token }}"
+
+          echo "👥 批量查询风险域负责人 open_id..."
+
+          EMAILS_JSON='[
+            "luowanmin.426@jiyunhudong.com",
+            "fupeiwen@jiyunhudong.com",
+            "gaoyan.0327@jiyunhudong.com",
+            "cuihongxu@jiyunhudong.com",
+            "jiguosheng.666@jiyunhudong.com",
+            "wenkebing@jiyunhudong.com",
+            "liushuwan.0821@jiyunhudong.com",
+            "zhanghuijun.01@jiyunhudong.com"
+          ]'
+
+          RESPONSE=$(curl -s -X POST "https://open.feishu.cn/open-apis/contact/v3/users/batch_get_id?user_id_type=open_id" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            -d "{\"emails\":$EMAILS_JSON}")
+
+          CODE=$(echo "$RESPONSE" | jq -r '.code')
+          if [ "$CODE" != "0" ]; then
+            echo "❌ 批量查询 open_id 失败"
+            echo "错误码: $CODE"
+            echo "错误信息: $(echo "$RESPONSE" | jq -r '.msg')"
+            echo "完整响应: $RESPONSE"
+            exit 1
+          fi
+
+          extract_open_id() {
+            local email="$1"
+            echo "$RESPONSE" | jq -r --arg email "$email" '.data.email_users[$email][0].open_id // empty'
+          }
+
+          PAN_ENT_OPEN_ID=$(extract_open_id "luowanmin.426@jiyunhudong.com")
+          PORN_OPEN_ID=$(extract_open_id "fupeiwen@jiyunhudong.com")
+          SPECIAL_GROUP_OPEN_ID=$(extract_open_id "gaoyan.0327@jiyunhudong.com")
+          ORDER_OPEN_ID=$(extract_open_id "cuihongxu@jiyunhudong.com")
+          POLITICS_OPEN_ID=$(extract_open_id "jiguosheng.666@jiyunhudong.com")
+          GAME_OPEN_ID=$(extract_open_id "wenkebing@jiyunhudong.com")
+          DIALECT_OPEN_ID=$(extract_open_id "liushuwan.0821@jiyunhudong.com")
+          REPORT_OPEN_ID=$(extract_open_id "zhanghuijun.01@jiyunhudong.com")
+
+          for pair in \
+            "泛娱乐不良:$PAN_ENT_OPEN_ID" \
+            "色情性化:$PORN_OPEN_ID" \
+            "录播特殊群体:$SPECIAL_GROUP_OPEN_ID" \
+            "专业限制平台秩序:$ORDER_OPEN_ID" \
+            "违法危险行为涉政:$POLITICS_OPEN_ID" \
+            "游戏:$GAME_OPEN_ID" \
+            "方言外语:$DIALECT_OPEN_ID" \
+            "举报:$REPORT_OPEN_ID"; do
+            label="${pair%%:*}"
+            open_id="${pair#*:}"
+            if [ -z "$open_id" ]; then
+              echo "❌ 未查到【$label】对应的 open_id"
+              echo "完整响应: $RESPONSE"
+              exit 1
+            fi
+          done
+
+          MENTION_LINE="泛娱乐不良 <at id=\"$PAN_ENT_OPEN_ID\"></at>、色情性化 <at id=\"$PORN_OPEN_ID\"></at>、录播特殊群体 <at id=\"$SPECIAL_GROUP_OPEN_ID\"></at>、专业限制平台秩序 <at id=\"$ORDER_OPEN_ID\"></at>、违法危险行为涉政 <at id=\"$POLITICS_OPEN_ID\"></at>、游戏 <at id=\"$GAME_OPEN_ID\"></at>、方言外语 <at id=\"$DIALECT_OPEN_ID\"></at>、举报 <at id=\"$REPORT_OPEN_ID\"></at>"
+
+          {
+            echo "PAN_ENT_OPEN_ID=$PAN_ENT_OPEN_ID"
+            echo "PORN_OPEN_ID=$PORN_OPEN_ID"
+            echo "SPECIAL_GROUP_OPEN_ID=$SPECIAL_GROUP_OPEN_ID"
+            echo "ORDER_OPEN_ID=$ORDER_OPEN_ID"
+            echo "POLITICS_OPEN_ID=$POLITICS_OPEN_ID"
+            echo "GAME_OPEN_ID=$GAME_OPEN_ID"
+            echo "DIALECT_OPEN_ID=$DIALECT_OPEN_ID"
+            echo "REPORT_OPEN_ID=$REPORT_OPEN_ID"
+            echo "MENTION_LINE=$MENTION_LINE"
+          } >> "$GITHUB_ENV"
+
+          {
+            echo "pan_ent_open_id=$PAN_ENT_OPEN_ID"
+            echo "porn_open_id=$PORN_OPEN_ID"
+            echo "special_group_open_id=$SPECIAL_GROUP_OPEN_ID"
+            echo "order_open_id=$ORDER_OPEN_ID"
+            echo "politics_open_id=$POLITICS_OPEN_ID"
+            echo "game_open_id=$GAME_OPEN_ID"
+            echo "dialect_open_id=$DIALECT_OPEN_ID"
+            echo "report_open_id=$REPORT_OPEN_ID"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "✅ 风险域负责人 open_id 查询成功"
 
       - name: 发送机审质检值班提醒卡片
         id: send_card
         run: |
+          set -euo pipefail
+
           TOKEN="${{ steps.get_token.outputs.token }}"
-          CHAT_ID="oc_60b5e9c78c4a10f6a85777fe4900767f"
+          CHAT_ID="oc_57d4fe6bdbb409c954ced93e9f803f40"
 
           echo "🚀 发送机审质检值班提醒到群聊[机审质检值班群]..."
 
-          # 构建卡片 JSON
-          CARD_JSON=$(cat <<'CARD_EOF'
-          {
-            "config": {
-              "wide_screen_mode": true
+          CARD_JSON=$(jq -n --arg mention_line "$MENTION_LINE" '{
+            config: {
+              wide_screen_mode: true
             },
-            "elements": [
+            elements: [
               {
-                "tag": "div",
-                "text": {
-                  "tag": "lark_md",
-                  "content": "**本周机审质检值班提醒**"
+                tag: "div",
+                text: {
+                  tag: "lark_md",
+                  content: "**本周机审质检值班提醒**"
                 }
               },
               {
-                "tag": "hr"
+                tag: "hr"
               },
               {
-                "tag": "div",
-                "text": {
-                  "tag": "lark_md",
-                  "content": "🗒 **提醒内容：**\n本周机审质检值班提醒，请各风险域配合完成以下事项："
+                tag: "div",
+                text: {
+                  tag: "lark_md",
+                  content: "🗒 **提醒内容：**\n本周机审质检值班提醒，请各风险域配合完成以下事项："
                 }
               },
               {
-                "tag": "div",
-                "text": {
-                  "tag": "lark_md",
-                  "content": "**1️⃣ 队列信息更新**\n请各业务同学更新所负责队列信息（前5个sheet，涉及队列上下线、试审等），并在sheet6[周度队列信息汇总]进行汇总：\n[模型标注队列信息汇总](https://bytedance.larkoffice.com/sheets/ZnCssbBlMhreNPt1URecMeLenih?sheet=8Lckiq&dcuId=skip_auth&disposable_login_token=eyJ1c2VyX2lkIjoiNzYwMzU2MDQzNTc3Nzg1MDMyNiIsImRldmljZV9sb2dpbl9pZCI6Ijc2MDM1NzY2OTY4MjE5MjY4NTUiLCJ0aW1lc3RhbXAiOjE3ODUxMzE5NzQsInVuaXQiOiJldV9uYyIsInB3ZF9sZXNzX2xvZ2luX2F1dGgiOiIxIiwidmVyc2lvbiI6InYzIiwidGVuYW50X2JyYW5kIjoiZmVpc2h1IiwicGtnX2JyYW5kIjoi6aOe5LmmIiwiY2xpZW50X3NjaGVtYSI6IngtZmVpc2h1In0%3D.e0bebb06f07201a8e4722e5545f76764d3701c0c11b1e6d49bcdab5fd6baf154)"
+                tag: "div",
+                text: {
+                  tag: "lark_md",
+                  content: "**1️⃣ 队列信息更新**\n请各业务同学更新所负责队列信息（前5个sheet，涉及队列上下线、试审等），并在sheet6[周度队列信息汇总]进行汇总：\n[模型标注队列信息汇总](https://bytedance.larkoffice.com/sheets/ZnCssbBlMhreNPt1URecMeLenih?sheet=8Lckiq&dcuId=skip_auth&disposable_login_token=eyJ1c2VyX2lkIjoiNzYwMzU2MDQzNTc3Nzg1MDMyNiIsImRldmljZV9sb2dpbl9pZCI6Ijc2MDM1NzY2OTY4MjE5MjY4NTUiLCJ0aW1lc3RhbXAiOjE3ODUxMzE5NzQsInVuaXQiOiJldV9uYyIsInB3ZF9sZXNzX2xvZ2luX2F1dGgiOiIxIiwidmVyc2lvbiI6InYzIiwidGVuYW50X2JyYW5kIjoiZmVpc2h1IiwicGtnX2JyYW5kIjoi6aOe5LmmIiwiY2xpZW50X3NjaGVtYSI6IngtZmVpc2h1In0%3D.e0bebb06f07201a8e4722e5545f76764d3701c0c11b1e6d49bcdab5fd6baf154)\n\n\($mention_line)"
                 }
               },
               {
-                "tag": "hr"
+                tag: "hr"
               },
               {
-                "tag": "div",
-                "text": {
-                  "tag": "lark_md",
-                  "content": "**2️⃣ 模型分析记录留痕**\n请大家及时在文档中完成本周机审模型分析记录的留痕，保证分析过程可追溯：\n[26年机审模型分析记录](https://bytedance.larkoffice.com/wiki/O0H9wyXl5imLdjkc0ibcrASUn9f?sheet=L0nqmc&dcuId=skip_auth&disposable_login_token=eyJ1c2VyX2lkIjoiNzYwMzU2MDQzNTc3Nzg1MDMyNiIsImRldmljZV9sb2dpbl9pZCI6Ijc2MDM1NzY2OTY4MjE5MjY4NTUiLCJ0aW1lc3RhbXAiOjE3ODUxMzE5ODEsInVuaXQiOiJldV9uYyIsInB3ZF9sZXNzX2xvZ2luX2F1dGgiOiIxIiwidmVyc2lvbiI6InYzIiwidGVuYW50X2JyYW5kIjoiZmVpc2h1IiwicGtnX2JyYW5kIjoi6aOe5LmmIiwiY2xpZW50X3NjaGVtYSI6IngtZmVpc2h1In0%3D.ba7688fb1098a2ba6a1e7988d6fb7629b355d77237626e0452a98cd7e2b21ed9)"
+                tag: "div",
+                text: {
+                  tag: "lark_md",
+                  content: "**2️⃣ 模型分析记录留痕**\n请大家及时在文档中完成本周机审模型分析记录的留痕，保证分析过程可追溯：\n[26年机审模型分析记录](https://bytedance.larkoffice.com/wiki/O0H9wyXl5imLdjkc0ibcrASUn9f?sheet=L0nqmc&dcuId=skip_auth&disposable_login_token=eyJ1c2VyX2lkIjoiNzYwMzU2MDQzNTc3Nzg1MDMyNiIsImRldmljZV9sb2dpbl9pZCI6Ijc2MDM1NzY2OTY4MjE5MjY4NTUiLCJ0aW1lc3RhbXAiOjE3ODUxMzE5ODEsInVuaXQiOiJldV9uYyIsInB3ZF9sZXNzX2xvZ2luX2F1dGgiOiIxIiwidmVyc2lvbiI6InYzIiwidGVuYW50X2JyYW5kIjoiZmVpc2h1IiwicGtnX2JyYW5kIjoi6aOe5LmmIiwiY2xpZW50X3NjaGVtYSI6IngtZmVpc2h1In0%3D.ba7688fb1098a2ba6a1e7988d6fb7629b355d77237626e0452a98cd7e2b21ed9)"
                 }
               },
               {
-                "tag": "hr"
+                tag: "hr"
               },
               {
-                "tag": "div",
-                "text": {
-                  "tag": "lark_md",
-                  "content": "⏰ 以上事项请于今日 **18:00** 前完成，感谢大家配合！🙏"
+                tag: "div",
+                text: {
+                  tag: "lark_md",
+                  content: "⏰ 以上事项请于今日 **18:00** 前完成，感谢大家配合！🙏"
                 }
               }
             ]
-          }
-          CARD_EOF
-          )
-
-          # 转义 JSON 用于嵌入请求体
-          ESCAPED_CARD=$(echo "$CARD_JSON" | jq -c . | jq -Rs .)
+          }')
 
           SEND_RESPONSE=$(curl -s -X POST \
             "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id" \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"receive_id\":\"$CHAT_ID\",\"msg_type\":\"interactive\",\"content\":$ESCAPED_CARD}")
+            -d "$(jq -n --arg receive_id "$CHAT_ID" --arg content "$CARD_JSON" '{receive_id: $receive_id, msg_type: "interactive", content: $content}')")
 
           echo "发送响应: $SEND_RESPONSE"
 
           SEND_CODE=$(echo "$SEND_RESPONSE" | jq -r '.code')
 
-          if [ "$SEND_CODE" == "0" ]; then
+          if [ "$SEND_CODE" = "0" ]; then
             MSG_ID=$(echo "$SEND_RESPONSE" | jq -r '.data.message_id')
             echo "✅ 卡片发送成功！消息ID: $MSG_ID"
           else
             echo "❌ 发送失败"
             echo "错误码: $SEND_CODE"
-            echo "错误信息: $(echo $SEND_RESPONSE | jq -r '.msg')"
+            echo "错误信息: $(echo "$SEND_RESPONSE" | jq -r '.msg')"
             exit 1
           fi
 
