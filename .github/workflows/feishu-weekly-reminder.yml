@@ -150,7 +150,7 @@ jobs:
           set -euo pipefail
 
           TOKEN="${{ steps.get_token.outputs.token }}"
-          CHAT_ID="oc_57d4fe6bdbb409c954ced93e9f803f40"
+          CHAT_ID="oc_60b5e9c78c4a10f6a85777fe4900767f"
 
           echo "🚀 发送机审质检值班提醒到群聊[机审质检值班群]..."
 
