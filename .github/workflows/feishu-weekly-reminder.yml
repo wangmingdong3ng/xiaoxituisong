@@ -184,7 +184,7 @@ jobs:
                 tag: "div",
                 text: {
                   tag: "lark_md",
-                  content: "**1️⃣ 队列信息更新**\n请各业务同学更新所负责队列信息（前5个sheet，涉及队列上下线、试审等），并在sheet6[周度队列信息汇总]进行汇总：\n[模型标注队列信息汇总](https://bytedance.larkoffice.com/sheets/ZnCssbBlMhreNPt1URecMeLenih?sheet=8Lckiq&dcuId=skip_auth&disposable_login_token=eyJ1c2VyX2lkIjoiNzYwMzU2MDQzNTc3Nzg1MDMyNiIsImRldmljZV9sb2dpbl9pZCI6Ijc2MDM1NzY2OTY4MjE5MjY4NTUiLCJ0aW1lc3RhbXAiOjE3ODUxMzE5NzQsInVuaXQiOiJldV9uYyIsInB3ZF9sZXNzX2xvZ2luX2F1dGgiOiIxIiwidmVyc2lvbiI6InYzIiwidGVuYW50X2JyYW5kIjoiZmVpc2h1IiwicGtnX2JyYW5kIjoi6aOe5LmmIiwiY2xpZW50X3NjaGVtYSI6IngtZmVpc2h1In0%3D.e0bebb06f07201a8e4722e5545f76764d3701c0c11b1e6d49bcdab5fd6baf154)\n\n\($mention_line)"
+                  content: "**1️⃣ 队列信息更新**\n请各业务同学更新所负责队列信息（前4个sheet，涉及队列上下线、试审等），并在sheet5[周度队列信息汇总]进行汇总：\n[模型标注队列信息汇总](https://bytedance.larkoffice.com/sheets/ZnCssbBlMhreNPt1URecMeLenih?sheet=8Lckiq&dcuId=skip_auth&disposable_login_token=eyJ1c2VyX2lkIjoiNzYwMzU2MDQzNTc3Nzg1MDMyNiIsImRldmljZV9sb2dpbl9pZCI6Ijc2MDM1NzY2OTY4MjE5MjY4NTUiLCJ0aW1lc3RhbXAiOjE3ODUxMzE5NzQsInVuaXQiOiJldV9uYyIsInB3ZF9sZXNzX2xvZ2luX2F1dGgiOiIxIiwidmVyc2lvbiI6InYzIiwidGVuYW50X2JyYW5kIjoiZmVpc2h1IiwicGtnX2JyYW5kIjoi6aOe5LmmIiwiY2xpZW50X3NjaGVtYSI6IngtZmVpc2h1In0%3D.e0bebb06f07201a8e4722e5545f76764d3701c0c11b1e6d49bcdab5fd6baf154)\n\n\($mention_line)"
                 }
               },
               {
@@ -234,5 +234,5 @@ jobs:
         if: always()
         run: |
           echo "================================"
-          echo "✅ 每周一机审质检值班提醒 - 执行完成"
+          echo "✅ 每周机审质检值班提醒 - 执行完成"
           echo "================================"
